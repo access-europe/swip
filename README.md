@@ -44,7 +44,6 @@
 
 ###### Setup
 ```bash
-npm install webpack -g
 npm install
 cd examples/golf
 npm install

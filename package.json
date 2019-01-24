@@ -30,7 +30,8 @@
     "redux": "^3.5.2",
     "redux-logger": "^2.6.1",
     "redux-node-logger": "0.0.3",
-    "uid": "0.0.2"
+    "uid": "0.0.2",
+    "webpack": "^2.2.0-rc"
   },
   "peerDependencies": {
     "socket.io": "1.4.x"
