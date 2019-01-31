@@ -12,7 +12,8 @@
     "golf": "node examples/golf/server/index.js",
     "golf:dev": "nodemon examples/golf/server/index.js",
     "contact": "node examples/contact-share/server/index.js",
-    "contact:dev": "nodemon examples/contact-share/server/index.js"
+    "contact:dev": "nodemon examples/contact-share/server/index.js",
+    "maps": "node examples/maps/server/index.js"
   },
   "repository": {
     "type": "git",
@@ -25,11 +26,13 @@
   },
   "homepage": "https://github.com/paulsonnentag/swip#readme",
   "dependencies": {
+    "html2canvas": "^1.0.0-alpha.12",
     "immutability-helper": "^2.0.0",
     "lodash": "^4.13.1",
     "redux": "^3.5.2",
     "redux-logger": "^2.6.1",
     "redux-node-logger": "0.0.3",
+    "request": "^2.88.0",
     "uid": "0.0.2",
     "webpack": "^2.2.0-rc"
   },
