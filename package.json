@@ -26,9 +26,10 @@
   },
   "homepage": "https://github.com/paulsonnentag/swip#readme",
   "dependencies": {
-    "html2canvas": "^1.0.0-alpha.12",
+    "canvas": "^2.3.1",
     "immutability-helper": "^2.0.0",
     "lodash": "^4.13.1",
+    "merge-images": "^1.1.0",
     "redux": "^3.5.2",
     "redux-logger": "^2.6.1",
     "redux-node-logger": "0.0.3",

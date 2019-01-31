@@ -1,9 +1,16 @@
+//import mergeImages from 'merge-images';
+const mergeImages = require("merge-images");
+const { createCanvas, Canvas } = require('canvas');
+const { Image } = require('canvas');
+
 const express = require('express');
 const app = express();
 const server = require('http').Server(app);
 const io = require('socket.io')(server);
 const swip = require('../../../src/server/index.js');
 var request = require('request');
+
+var mapImg = undefined;
 
 app.use(express.static(__dirname + './../static'));
 app.use('/proxy', function(req, res) {
@@ -17,61 +24,9 @@ swip(io, {
   cluster: {
     events: {
       update: (cluster) => {
-        const blobs = cluster.data.blobs;
         const clients = cluster.clients;
 
-        const updatedBlobs = blobs.map((blob) => {
-          const boundaryOffset = blob.size;
-          const client = clients.find((c) => isParticleInClient(blob, c));
-
-          let nextPosX = blob.x + blob.speedX;
-          let nextPosY = blob.y + blob.speedY;
-          let nextSpeedX = blob.speedX;
-          let nextSpeedY = blob.speedY;
-
-          if (client) { // update speed and position if collision happens
-            if (((blob.speedX < 0) &&
-              ((nextPosX - boundaryOffset) < client.transform.x)
-              && !isWallOpenAtPosition(client.transform.y, client.openings.left, nextPosY))) {
-              nextPosX = client.transform.x + boundaryOffset;
-              nextSpeedX = blob.speedX * -1;
-            } else if (((blob.speedX > 0) &&
-              ((nextPosX + boundaryOffset) > (client.transform.x + client.size.width))
-              && !isWallOpenAtPosition(client.transform.y, client.openings.right, nextPosY))) {
-              nextPosX = client.transform.x + (client.size.width - boundaryOffset);
-              nextSpeedX = blob.speedX * -1;
-            }
-
-            if (((blob.speedY < 0) &&
-              ((nextPosY - boundaryOffset) < client.transform.y
-              && !isWallOpenAtPosition(client.transform.x, client.openings.top, nextPosX)))) {
-              nextPosY = client.transform.y + boundaryOffset;
-              nextSpeedY = blob.speedY * -1;
-            } else if (((blob.speedY > 0) &&
-              ((nextPosY + boundaryOffset) > (client.transform.y + client.size.height))
-              && !isWallOpenAtPosition(client.transform.x, client.openings.bottom, nextPosX))
-            ) {
-              nextPosY = client.transform.y + (client.size.height - boundaryOffset);
-              nextSpeedY = blob.speedY * -1;
-            }
-          } else { // reset blob to first client of cluster
-            const firstClient = clients[0];
-            nextPosX = firstClient.transform.x + (firstClient.size.width / 2);
-            nextPosY = firstClient.transform.y + (firstClient.size.height / 2);
-            nextSpeedX = 0;
-            nextSpeedY = 0;
-          }
-
-          blob.x = nextPosX;
-          blob.y = nextPosY;
-          blob.speedX = nextSpeedX;
-          blob.speedY = nextSpeedY;
-
-          return blob;
-        });
-
         return {
-          blobs: { $set: updatedBlobs },
         };
       },
       merge: (cluster1, cluster2, transform) => ({
@@ -83,7 +38,7 @@ swip(io, {
   },
 
   client: {
-    init: () => ({}),
+    init: () => ({ mapImg: mapImg }),
     events: {
       addBlobs: ({ cluster, client }, { blobs }) => {
         return {
@@ -140,7 +95,44 @@ function getRandomColor () {
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
+function latlon_to_tile(lat, lon, zoom) {
+  var m = Math.pow(2, zoom);
+  var lat_rad = lat * Math.PI / 180;
+  return [Math.floor((lon + 180) / 360 * m), Math.floor((1 - Math.log(Math.tan(lat_rad) + 1 / Math.cos(lat_rad)) / Math.PI) / 2 * m)];
+}
+
+function getMapImgUrls(width, height, zoom) {
+  var mapTilesImgs = [];
+  let latitude = 51.485891900000006;
+  let longitude = 6.8653518;
+  let coords = latlon_to_tile(latitude, longitude, zoom);
+  let rowsCount = Math.ceil(height / 256.0);
+  let colsCount = Math.ceil(width / 256.0);
+
+  //storedData = { 'zoom': zoom, 'lat': latitude, 'lon': longitude };
+
+  console.log("Getting map's tiles");
+  for (var i = 0; i < colsCount; ++i) {
+    for (var j = 0; j < rowsCount; ++j) {
+      let imgUrl = { src: 'http://172.21.2.54:3000/proxy?url=https://a.tile.openstreetmap.org/' + zoom + '/' + (coords[0] + i) + '/' + (coords[1] + j) + '.png',
+                     x: i * 256,
+                     y: j * 256 };
+      mapTilesImgs.push(imgUrl);
+    }
+  }
+
+  return mapTilesImgs;
+}
+
 server.listen(3000);
+server.timeout = 10000;
+
+setTimeout(() => {
+  mergeImages(getMapImgUrls(1920, 1080, 4), { Canvas: createCanvas, Image: Image })
+    .then(b64 => { mapImg = b64; })
+    .catch(err => { console.log("couldn't load the image:" + err) });
+}, 1000);
+
 
 // eslint-disable-next-line no-console
 console.log('started server: http://localhost:3000');
