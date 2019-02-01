@@ -17,6 +17,12 @@ var drawnTimes = 0;
     var activeBlobs = [];
     var clickedBlobs = [];
 
+    var mapImg = undefined;
+
+    fetch('http://172.21.2.54:3000/mapImg')
+      .then(response => response.json())
+      .then(data => { console.log(data); mapImg = data; });
+
     client.onDragStart(function (evt) {
       evt.position.forEach(function (pos) {
         for (var i = 0; i < blobs.length; i++) {
@@ -113,7 +119,11 @@ var drawnTimes = 0;
       applyTransform(ctx, converter, evt.client.transform);
 
       drawBackground(ctx, evt);
-      drawMaps(ctx, evt);
+
+      if (mapImg) {
+        drawMaps(ctx, evt, mapImg);
+      }
+
       drawOpenings(ctx, evt.client);
 
       ctx.restore();
@@ -188,14 +198,13 @@ var drawnTimes = 0;
     return mapTilesImgs;
   }
 
-  var img = new Image;
   //img.src = 'https://www.petmd.com/sites/default/files/over-active-dog-211592482.jpg';
-  img.src = 'https://hdwallsource.com/img/2014/7/desktop-images-15066-15533-hd-wallpapers.jpg';
+  //img.src = 'https://hdwallsource.com/img/2014/7/desktop-images-15066-15533-hd-wallpapers.jpg';
   var storedSize = { width: 0, height: 0 };
-  function drawMaps(ctx, evt) {
+  function drawMaps(ctx, evt, mapImg) {
     ctx.save();
 
-    let totalWidth = 0;
+    /*let totalWidth = 0;
     for (var i = 0; i < evt.cluster.clients.length; i++) {
       totalWidth += evt.cluster.clients[i].size.width;
     }
@@ -218,7 +227,24 @@ var drawnTimes = 0;
       }
     } else {
       console.log("mapReadyForDrawing = false");
-    }
+    }*/
+
+    let minX = 0;
+    let minY = 0;
+    evt.cluster.clients.forEach((client) => {
+      if (client.transform.x < minX) {
+        minX = client.transform.x;
+      }
+      if (client.transform.y < minY) {
+        minY = client.transform.y;
+      }
+    });
+
+    let img = new Image();
+    img.src = mapImg.img;
+    let width = mapImg.width;
+    let height = mapImg.height;
+    ctx.drawImage(img, 0, 0, width, height, minX, minY, width, height);
 
     ctx.restore();
   }

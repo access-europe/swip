@@ -10,7 +10,7 @@ const io = require('socket.io')(server);
 const swip = require('../../../src/server/index.js');
 var request = require('request');
 
-var mapImg = undefined;
+var mapImg = { img: '', width: 1920, height: 1080 };
 
 app.use(express.static(__dirname + './../static'));
 app.use('/proxy', function(req, res) {
@@ -18,6 +18,9 @@ app.use('/proxy', function(req, res) {
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
   var url = req.url.replace('/?url=','');
   req.pipe(request(url)).pipe(res);
+});
+app.get("/mapImg", function (req, res) {
+  res.status(200).send(mapImg);
 });
 
 swip(io, {
@@ -38,7 +41,7 @@ swip(io, {
   },
 
   client: {
-    init: () => ({ mapImg: mapImg }),
+    init: () => ({}),
     events: {
       addBlobs: ({ cluster, client }, { blobs }) => {
         return {
@@ -121,17 +124,17 @@ function getMapImgUrls(width, height, zoom) {
     }
   }
 
-  return mapTilesImgs;
+  //console.log("imgs: " + JSON.stringify(mapTilesImgs));
+  return { imgs: mapTilesImgs, rows: rowsCount, cols: colsCount };
 }
 
 server.listen(3000);
-server.timeout = 10000;
 
-setTimeout(() => {
-  mergeImages(getMapImgUrls(1920, 1080, 4), { Canvas: createCanvas, Image: Image })
-    .then(b64 => { mapImg = b64; })
-    .catch(err => { console.log("couldn't load the image:" + err) });
-}, 1000);
+let map = getMapImgUrls(mapImg.width, mapImg.height, 17);
+mergeImages(map.imgs, { quality: 0.9, format: 'image/jpeg', width: mapImg.width, height: mapImg.height, Canvas: createCanvas, Image: Image })
+  .then(b64 => { mapImg.img = b64; })
+  .catch(err => { console.log("couldn't load the image:" + err) });
+
 
 
 // eslint-disable-next-line no-console
