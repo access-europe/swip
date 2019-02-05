@@ -1,5 +1,5 @@
 //import mergeImages from 'merge-images';
-const mergeImages = require("merge-images");
+const mergeImages = require("./merge-images");
 const { createCanvas, Canvas } = require('canvas');
 const { Image } = require('canvas');
 
