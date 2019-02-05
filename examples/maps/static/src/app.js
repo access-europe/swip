@@ -12,10 +12,12 @@ var drawnTimes = 0;
     var stage = client.stage;
     var ctx = stage.getContext('2d');
 
-    var counter = 0;
-    var blobs = [];
-    var activeBlobs = [];
-    var clickedBlobs = [];
+    var touchStartPos = { x: 0, y: 0 };
+    var zooming = false;
+    var zoom = 1.0;
+    //var currentZoom = 0.0;
+    var prevPinchDist = 0;
+    var ignoreNextTouchEnd = false;
 
     var mapImg = undefined;
 
@@ -24,95 +26,53 @@ var drawnTimes = 0;
       .then(data => { console.log(data); mapImg = data; });
 
     client.onDragStart(function (evt) {
-      evt.position.forEach(function (pos) {
-        for (var i = 0; i < blobs.length; i++) {
-          if (touchInRadius(pos.x, pos.y, blobs[i].x, blobs[i].y, blobs[i].size * 2)) {
-            clickedBlobs.push(blobs.splice(i, 1)[0]);
-          }
-        }
-      });
-      if (clickedBlobs.length > 0) {
-        client.emit('updateBlobs', { blobs: blobs });
-      }
-
-      if (clickedBlobs == false) {
-        evt.position.forEach(function (pos) {
-          activeBlobs.push({
-            x: pos.x,
-            y: pos.y,
-            speedX: 0,
-            speedY: 0,
-            size: converter.toAbsPixel(15)
-          });
-        });
+      touchStartPos = evt.position;
+      if (evt.originalEvent.touches.length === 2) {
+        prevPinchDist = Math.hypot(evt.originalEvent.touches[0].pageX - evt.originalEvent.touches[1].pageX, 
+                                   evt.originalEvent.touches[0].pageY - evt.originalEvent.touches[1].pageY);
+        //alert(JSON.stringify(evt.position));
+        zooming = true;
       }
     });
 
     client.onDragMove(function (evt) {
-      if (clickedBlobs.length > 0) {
-        if (counter >= 3) {
-          evt.position.forEach(function (pos) {
-            for (var i = 0; i < clickedBlobs.length; i++) {
-              if (touchInRadius(pos.x, pos.y, clickedBlobs[i].x, clickedBlobs[i].y, clickedBlobs[i].size * 10)) {
-                clickedBlobs[i].x = pos.x;
-                clickedBlobs[i].y = pos.y;
-              }
-            }
-          });
-          counter = 0;
-        }
-        counter++;
-      } else {
-        evt.position.forEach(function (pos) {
-          for (var i = 0; i < activeBlobs.length; i++) {
-            if (touchInRadius(pos.x, pos.y, activeBlobs[i].x, activeBlobs[i].y, activeBlobs[i].size)) {
-              activeBlobs.splice(i, 1);
-              i--;
-            }
-          }
-        });
+      if (ignoreNextTouchEnd)
+        return;
+
+      if (!zooming && evt.position.length === 1) {
+        let translation = { x: evt.position[0].x - touchStartPos[0].x, 
+                            y: evt.position[0].y - touchStartPos[0].y};
+
+        client.emit('moveMap', { translation: translation });
+      } else if (zooming) {
+        let currentPinchDist = Math.hypot(evt.originalEvent.touches[0].pageX - evt.originalEvent.touches[1].pageX, 
+                                          evt.originalEvent.touches[0].pageY - evt.originalEvent.touches[1].pageY);
+        zoom += (currentPinchDist - prevPinchDist) / 800;
+        prevPinchDist = currentPinchDist;
+        //zoom += 0.1;
+        client.emit('zoomMap', { zoom: zoom });
       }
     });
 
     client.onDragEnd(function (evt) {
-      if (clickedBlobs == false) {
-        evt.position.forEach(function (pos) {
-          var emitBlobs = [];
-          for (var i = 0; i < activeBlobs.length; i++) {
-            if (touchInRadius(pos.x, pos.y, activeBlobs[i].x, activeBlobs[i].y, activeBlobs[i].size)) {
-              emitBlobs.push(activeBlobs[i]);
-              activeBlobs.splice(i, 1);
-              i--;
-            }
-          }
-          if (emitBlobs) {
-            client.emit('addBlobs', { blobs: emitBlobs });
-          }
-        });
-      } else {
-        evt.position.forEach(function (pos) {
-          var emitBlobs = [];
-          for (var i = 0; i < clickedBlobs.length; i++) {
-            var startX = clickedBlobs[i].x;
-            var startY = clickedBlobs[i].y;
+      if (ignoreNextTouchEnd)
+        return;
 
-            if (touchInRadius(pos.x, pos.y, clickedBlobs[i].x, clickedBlobs[i].y, clickedBlobs[i].size * 40)) {
-              clickedBlobs[i].x = pos.x;
-              clickedBlobs[i].y = pos.y;
-              clickedBlobs[i].speedX = (pos.x - startX) / 2;
-              clickedBlobs[i].speedY = (pos.y - startY) / 2;
-              emitBlobs.push(clickedBlobs.splice(i, 1)[0]);
-              i--;
-            }
-          }
-          client.emit('addBlobs', { blobs: emitBlobs });
-        });
+      if (!zooming && evt.position.length === 1) {
+        client.emit('moveMapEnd', { });
+      } else if (zooming) {
+        zooming = false;
+        client.emit('zoomMapEnd', { });
+        ignoreNextTouchEnd = true;
+        setTimeout(() => {
+          ignoreNextTouchEnd = false;
+        }, 200);
       }
     });
 
     client.onUpdate(function (evt) {
-      var updatedBlobs = evt.cluster.data.blobs;
-      blobs = updatedBlobs;
+      //var updatedBlobs = evt.cluster.data.blobs;
+      //blobs = updatedBlobs;
 
       ctx.save();
 
@@ -121,7 +81,7 @@ var drawnTimes = 0;
       drawBackground(ctx, evt);
 
       if (mapImg) {
-        drawMaps(ctx, evt, mapImg);
+        drawMaps(ctx, evt, touchStartPos, mapImg);
       }
 
       drawOpenings(ctx, evt.client);
@@ -144,120 +104,41 @@ var drawnTimes = 0;
     ctx.scale(converter.toDevicePixel(1), converter.toDevicePixel(1));
   }
 
-  function latlon_to_tile(lat, lon, zoom) {
-    var m = Math.pow(2, zoom);
-    var lat_rad = lat * Math.PI / 180;
-    return [Math.floor((lon + 180) / 360 * m), Math.floor((1 - Math.log(Math.tan(lat_rad) + 1 / Math.cos(lat_rad)) / Math.PI) / 2 * m)];
-  }
-
-  var mapCanvas = document.createElement('canvas');
-  var mapTilesImgs = [];
-  var storedData = {
-    zoom: undefined,
-    lat: undefined,
-    lon: undefined
-  }
-  var storedMapSize = {
-    width: 0,
-    height: 0
-  }
-  var mapReadyForDrawing = false;
-
-  function getMapTileImg(width, height, zoom) {
-    mapReadyForDrawing = false;
-    mapTilesImgs = [];
-    let latitude = 51.485891900000006;
-    let longitude = 6.8653518;
-    let coords = latlon_to_tile(latitude, longitude, zoom);
-    let rowsCount = Math.ceil(height / 256.0);
-    let colsCount = Math.ceil(width / 256.0);
-    var imgLoadedCount = 0;
-
-    storedData = { 'zoom': zoom, 'lat': latitude, 'lon': longitude };
-
-    console.log("Getting map's tiles");
-    for (var i = 0; i < colsCount; ++i) {
-      mapTilesImgs.push([]);
-      for (var j = 0; j < rowsCount; ++j) {
-        var img = new Image();
-        img.crossOrigin = "Anonymous";
-        img.onload = () => { 
-          //console.log('loaded: ' + i + ' ' + j);
-          if (++imgLoadedCount >= rowsCount * colsCount) {
-            mapReadyForDrawing = true;
-          }
-        };
-        let imgUrl = 'http://172.21.2.54:3000/proxy?url=https://a.tile.openstreetmap.org/' + zoom + '/' + (coords[0] + i) + '/' + (coords[1] + j) + '.png';
-        img.onerror = () => { /*console.log("error, reloading " + i + ' ' + j);*/ img.src = ''; img.src = imgUrl; }
-        img.src = imgUrl;
-
-        mapTilesImgs[i].push(img);
-      }
-    }
-
-    return mapTilesImgs;
-  }
-
-  //img.src = 'https://www.petmd.com/sites/default/files/over-active-dog-211592482.jpg';
-  //img.src = 'https://hdwallsource.com/img/2014/7/desktop-images-15066-15533-hd-wallpapers.jpg';
-  var storedSize = { width: 0, height: 0 };
-  function drawMaps(ctx, evt, mapImg) {
+  function drawMaps(ctx, evt, touchStartPos, mapImg) {
     ctx.save();
-
-    /*let totalWidth = 0;
-    for (var i = 0; i < evt.cluster.clients.length; i++) {
-      totalWidth += evt.cluster.clients[i].size.width;
-    }
-    let maxHeight = Math.max(...evt.cluster.clients.map(client => client.size.height));
-
-    if (totalWidth != storedSize.width || maxHeight != storedSize.height) {
-      getMapTileImg(totalWidth, maxHeight, 4);
-
-      console.log("rows: " + mapTilesImgs.length + ", columns: " + mapTilesImgs[0].length);
-      
-      storedSize.width = totalWidth;
-      storedSize.height = maxHeight;
-    }
-
-    if (mapReadyForDrawing) {
-      for (var i = 0; i < mapTilesImgs.length; ++i) {
-        for (var j = 0; j < mapTilesImgs[i].length; ++j) {
-          ctx.drawImage(mapTilesImgs[i][j], 0, 0, 256, 256, i * 256, j * 256, 256, 256);
-        }
-      }
-    } else {
-      console.log("mapReadyForDrawing = false");
-    }*/
 
     let minX = 0;
     let minY = 0;
     evt.cluster.clients.forEach((client) => {
-      if (client.transform.x < minX) {
+      if (client.transform.x < minX)
         minX = client.transform.x;
-      }
-      if (client.transform.y < minY) {
+      if (client.transform.y < minY)
         minY = client.transform.y;
-      }
     });
+
+    let translation = evt.cluster.data.translation ? evt.cluster.data.translation : { x: 0, y: 0 };
+    let zoom = evt.cluster.data.zoom ? evt.cluster.data.zoom : 1.0;
+
+    /*let mapImgCenter = { x: touchStartPos.x, y: touchStartPos.y };
+    let zoomMapImgCenter = { x: touchStartPos.x * zoom, y: touchStartPos.y * zoom };
+    
+    let zoomTranslation = { x: zoomMapImgCenter.x - mapImgCenter.x, y: zoomMapImgCenter.y - mapImgCenter.y };*/
+
+    //if (touchStartPos.x != 0 && touchStartPos.y != 0) {
+      //alert("mapImgCenter: " + JSON.stringify(mapImgCenter));
+      //alert("zoomMapImgCenter: " + JSON.stringify(zoomMapImgCenter));
+      //alert("zoomTranslation: " + JSON.stringify(zoomTranslation));
+    //}
+
+    let mapImgCenter = { x: mapImg.width / 2, y: mapImg.height / 2 };
+    let zoomMapImgCenter = { x: mapImg.width * zoom / 2, y: mapImg.height * zoom / 2 };
+    let zoomTranslation = { x: zoomMapImgCenter.x - mapImgCenter.x, y: zoomMapImgCenter.y - mapImgCenter.y };
 
     let img = new Image();
     img.src = mapImg.img;
-    let width = mapImg.width;
-    let height = mapImg.height;
-    ctx.drawImage(img, 0, 0, width, height, minX, minY, width, height);
+    ctx.drawImage(img, 0, 0, mapImg.width, mapImg.height, minX + translation.x - zoomTranslation.x, minY + translation.y - zoomTranslation.y, mapImg.width * zoom, mapImg.height * zoom);
 
     ctx.restore();
-  }
-
-  function touchInRadius(posX, posY, blobX, blobY, blobsSize) {
-    var inRadius = false;
-
-    if ((posX < (blobX + blobsSize) && posX > (blobX - blobsSize)) &&
-      (posY < (blobY + blobsSize) && posY > (blobY - blobsSize))) {
-      inRadius = true;
-    }
-
-    return inRadius;
   }
 
   function drawOpenings(ctx, client) {

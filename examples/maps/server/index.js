@@ -11,6 +11,8 @@ const swip = require('../../../src/server/index.js');
 var request = require('request');
 
 var mapImg = { img: '', width: 1920, height: 1080 };
+var mapMoveTranslation = { x: 0, y: 0 };
+var currentMapMoveTranslation = { x: 0, y: 0 };
 
 app.use(express.static(__dirname + './../static'));
 app.use('/proxy', function(req, res) {
@@ -57,9 +59,50 @@ swip(io, {
           },
         };
       },
+      moveMap: ({ cluster, client }, { translation }) => {
+        currentMapMoveTranslation.x = translation.x;
+        currentMapMoveTranslation.y = translation.y;
+        console.log("moveMap");
+        return {
+          cluster: {
+            data: { translation: { $set: getFinalMapTranslation() } },
+          },
+        };
+      },
+      moveMapEnd: ({ cluster, client }, { }) => {
+        mapMoveTranslation.x += currentMapMoveTranslation.x;
+        mapMoveTranslation.y += currentMapMoveTranslation.y;
+        currentMapMoveTranslation = { x: 0, y: 0 };
+        console.log("moveMapEnd: " + JSON.stringify(getFinalMapTranslation()));
+        return {
+          cluster: {
+            data: { translation: { $set: getFinalMapTranslation() } },
+          },
+        };
+      },
+      zoomMap: ({ cluster, client }, { zoom }) => {
+        return {
+          cluster: {
+            data: { zoom: { $set: zoom } },
+          },
+        };
+      },
+      zoomMapEnd: ({ cluster, client }, { }) => {
+        console.log(console.log("zoomMapEnd"));
+        return {
+          cluster: {
+            data: { },
+          },
+        };
+      },
     },
   },
 });
+
+function getFinalMapTranslation() {
+  return { x: mapMoveTranslation.x + currentMapMoveTranslation.x,
+           y: mapMoveTranslation.y + currentMapMoveTranslation.y };
+}
 
 function isParticleInClient (particle, client) {
   const leftSide = client.transform.x;
