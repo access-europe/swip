@@ -49,7 +49,6 @@ var drawnTimes = 0;
                                           evt.originalEvent.touches[0].pageY - evt.originalEvent.touches[1].pageY);
         zoom += (currentPinchDist - prevPinchDist) / 800;
         prevPinchDist = currentPinchDist;
-        //zoom += 0.1;
         client.emit('zoomMap', { zoom: zoom });
       }
     });
@@ -71,15 +70,11 @@ var drawnTimes = 0;
     });
 
     client.onUpdate(function (evt) {
-      //var updatedBlobs = evt.cluster.data.blobs;
-      //blobs = updatedBlobs;
-
       ctx.save();
 
       applyTransform(ctx, converter, evt.client.transform);
 
       drawBackground(ctx, evt);
-
       if (mapImg) {
         drawMaps(ctx, evt, touchStartPos, mapImg);
       }
@@ -136,7 +131,8 @@ var drawnTimes = 0;
 
     let img = new Image();
     img.src = mapImg.img;
-    ctx.drawImage(img, 0, 0, mapImg.width, mapImg.height, minX + translation.x - zoomTranslation.x, minY + translation.y - zoomTranslation.y, mapImg.width * zoom, mapImg.height * zoom);
+    ctx.drawImage(img, 0, 0, mapImg.width, mapImg.height, minX + translation.x - zoomTranslation.x, 
+                  minY + translation.y - zoomTranslation.y, mapImg.width * zoom, mapImg.height * zoom);
 
     ctx.restore();
   }

@@ -35,34 +35,19 @@ swip(io, {
         };
       },
       merge: (cluster1, cluster2, transform) => ({
-        blobs: { $set: getNewParticleDist(cluster1, cluster2, transform) },
         backgroundColor: { $set: cluster1.data.backgroundColor },
       }),
     },
-    init: () => ({ blobs: [], backgroundColor: getRandomColor() }),
+    init: () => ({ backgroundColor: getRandomColor() }),
   },
 
   client: {
     init: () => ({}),
     events: {
-      addBlobs: ({ cluster, client }, { blobs }) => {
-        return {
-          cluster: {
-            data: { blobs: { $push: blobs } },
-          },
-        };
-      },
-      updateBlobs: ({ cluster, client }, { blobs }) => {
-        return {
-          cluster: {
-            data: { blobs: { $set: blobs } },
-          },
-        };
-      },
       moveMap: ({ cluster, client }, { translation }) => {
         currentMapMoveTranslation.x = translation.x;
         currentMapMoveTranslation.y = translation.y;
-        console.log("moveMap");
+        //console.log("moveMap");
         return {
           cluster: {
             data: { translation: { $set: getFinalMapTranslation() } },
@@ -73,7 +58,7 @@ swip(io, {
         mapMoveTranslation.x += currentMapMoveTranslation.x;
         mapMoveTranslation.y += currentMapMoveTranslation.y;
         currentMapMoveTranslation = { x: 0, y: 0 };
-        console.log("moveMapEnd: " + JSON.stringify(getFinalMapTranslation()));
+        //console.log("moveMapEnd: " + JSON.stringify(getFinalMapTranslation()));
         return {
           cluster: {
             data: { translation: { $set: getFinalMapTranslation() } },
@@ -88,7 +73,7 @@ swip(io, {
         };
       },
       zoomMapEnd: ({ cluster, client }, { }) => {
-        console.log(console.log("zoomMapEnd"));
+        //console.log(console.log("zoomMapEnd"));
         return {
           cluster: {
             data: { },
@@ -102,38 +87,6 @@ swip(io, {
 function getFinalMapTranslation() {
   return { x: mapMoveTranslation.x + currentMapMoveTranslation.x,
            y: mapMoveTranslation.y + currentMapMoveTranslation.y };
-}
-
-function isParticleInClient (particle, client) {
-  const leftSide = client.transform.x;
-  const rightSide = (client.transform.x + client.size.width);
-  const topSide = client.transform.y;
-  const bottomSide = (client.transform.y + client.size.height);
-
-  if (particle.x < rightSide && particle.x > leftSide && particle.y > topSide && particle.y < bottomSide) {
-    return true;
-  }
-
-  return false;
-}
-
-function isWallOpenAtPosition (transform, openings, particlePos) {
-  return openings.some((opening) => (
-    particlePos >= (opening.start + transform) && particlePos <= (opening.end + transform)
-  ));
-}
-
-function getNewParticleDist (cluster1, cluster2, transform) {
-  cluster2.clients.forEach((client) => {
-    for (let i = 0; i < cluster2.data.blobs.length; i++) {
-      if (isParticleInClient(cluster2.data.blobs[i], client)) {
-        cluster2.data.blobs[i].x += transform.x;
-        cluster2.data.blobs[i].y += transform.y;
-      }
-    }
-  });
-
-  return cluster1.data.blobs.concat(cluster2.data.blobs);
 }
 
 function getRandomColor () {
@@ -155,8 +108,6 @@ function getMapImgUrls(width, height, zoom) {
   let rowsCount = Math.ceil(height / 256.0);
   let colsCount = Math.ceil(width / 256.0);
 
-  //storedData = { 'zoom': zoom, 'lat': latitude, 'lon': longitude };
-
   console.log("Getting map's tiles");
   for (var i = 0; i < colsCount; ++i) {
     for (var j = 0; j < rowsCount; ++j) {
@@ -167,7 +118,6 @@ function getMapImgUrls(width, height, zoom) {
     }
   }
 
-  //console.log("imgs: " + JSON.stringify(mapTilesImgs));
   return { imgs: mapTilesImgs, rows: rowsCount, cols: colsCount };
 }
 
@@ -178,7 +128,4 @@ mergeImages(map.imgs, { quality: 0.9, format: 'image/jpeg', width: mapImg.width,
   .then(b64 => { mapImg.img = b64; })
   .catch(err => { console.log("couldn't load the image:" + err) });
 
-
-
-// eslint-disable-next-line no-console
 console.log('started server: http://localhost:3000');
